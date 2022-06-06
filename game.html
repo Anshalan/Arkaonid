@@ -24,6 +24,7 @@
     <script>
 
 
+
         var myGamePiece;
         var myObstacle;
         var myBall;
@@ -32,10 +33,65 @@
         let keyboardEventListenerDown;
         let keyboardEventListenerUp;
         var isGameOver;
-        // var points = 0;
+        var baseSpeed = 5
 
+        var playerName = "";
+        var gameDate;
+        var points;
+        var gameTime;
+        var gameStartTime;
+        var gameStopTIme;
+
+        window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+        window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
+        window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
+
+        var db;
+        var request;
+
+        request = window.indexedDB.open("scoreBoard")
+
+        request.onsuccess = event => {
+            db = event.result
+        };
+
+        // var db = event.target.result;
+
+        request.onupgradeneeded = function (event) {
+            db = event.target.result;
+            var objectStore = db.createObjectStore("scoreBoard", { keyPath: "id", autoIncrement: true });
+            objectStore.createIndex("id", "id", { unique: true });
+
+            // objectStore.createIndex("name", "name");
+            // objectStore.createIndex("gameDate", "gameDate");
+            // objectStore.createIndex("points", "points");
+            // objectStore.createIndex("gameTime", "gameTime");
+        }
+        // request.onerror = event => {
+        //     // Do something with request.errorCode!
+        // };
+
+        function writeToDb() {
+            // db = event.target.result;
+            let record = {
+                name: playerName,
+                gameDate: gameDate,
+                points: myCounter.score,
+                gameTime: gameTime
+            }
+            var request2 = indexedDB.open("scoreBoard");
+            request2.onsuccess = event => {
+                db = event.target.result
+                var gameResult = db.transaction("scoreBoard", "readwrite").objectStore("scoreBoard");
+                gameResult.add(record)
+            };
+            // 
+
+
+        }
 
         function startGame() {
+            // gameDb =
             isGameOver = false;
             myGamePiece = new component(100, 25, "red", 350, 550);
             myBall = new ballComponent(5, "green", 400, 545);
@@ -49,6 +105,8 @@
                 }
             }
             myGameArea.start();
+            gameStartTime = Date.now();
+
         }
 
         var myGameArea = {
@@ -64,15 +122,15 @@
                 this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
             }
         }
-        function counter(color){
+        function counter(color) {
             this.score = 0;
-            this.update = function(){
+            this.update = function () {
 
-            
-            ctx = myGameArea.context;
-            ctx.fillStyle = color;
-            ctx.font = "40px Arial";
-            ctx.fillText(this.score, 10, 40);
+
+                ctx = myGameArea.context;
+                ctx.fillStyle = color;
+                ctx.font = "40px Arial";
+                ctx.fillText(this.score, 10, 40);
             }
         }
 
@@ -101,9 +159,9 @@
 
         function ballComponent(radius, color, x, y) {
             this.radius = radius;
-            this.baseSpeed = 4//?
+            this.ballMultiplier = 1//?
             this.speedX = 0;
-            this.speedY = (-1) * this.baseSpeed;
+            this.speedY = (-1) * baseSpeed;
             this.x = x;
             this.y = y;
             this.update = function () {
@@ -122,30 +180,160 @@
                 this.x += this.speedX;
                 this.y += this.speedY;
 
-                if (this.x - this.radius <= 0) {
-                    this.speedX = -this.speedX;
+                if (this.x - this.radius <= 0 || (this.x + this.radius >= 800)) {
+                    this.speedX = -this.speedX// *baseSpeed/3;;
+
+                    if (this.y < myGameArea.canvas.height / 10 || (this.y > (myGameArea.canvas.height / 10) * 9)) {
+
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 3;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else if (this.y < (myGameArea.canvas.height / 10) * 3 ||this.y > (myGameArea.canvas.height / 10) * 7) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 2;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    }
+                    else if (this.y < (myGameArea.canvas.height / 10) * 4 || this.y > (myGameArea.canvas.height / 10) * 6) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 1.5;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 1;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    }
+                    // console.log("ballMultiplier" + ballMultiplier)
+                    // console.log("baseSpeed" + baseSpeed)
+
                 }
-                else if (this.x + this.radius >= 800) {
-                    this.speedX = -this.speedX;
-                }
+                // else if (this.x + this.radius >= 800) {
+                //     this.speedX = -this.speedX;
+                // }
                 if (this.y - this.radius <= 0) {
-                    this.speedY = -this.speedY;
+                    // console.log("speedY" + this.speedY)
+                    
+
+                    this.speedY = -this.speedY// *baseSpeed/3;
+                    // console.log("speedY" + this.speedY)
+
+                    if (this.x < myGameArea.canvas.width / 10 || (this.x > (myGameArea.canvas.width / 10) * 9)) {
+                        
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 3;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else if (this.x < (myGameArea.canvas.width / 10) * 3 || this.x > (myGameArea.canvas.width / 10) * 7) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 2;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    }
+                    else if (this.x < (myGameArea.canvas.width / 10) * 4 || this.x > (myGameArea.canvas.width / 10) * 6) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 1.5;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else {
+                        console.log("this.speedY " + this.speedY)
+                        console.log("ballMultiplier " + this.ballMultiplier)
+
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        console.log("this.speedY " + this.speedY)
+                        this.ballMultiplier = 1;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                        console.log("this.speedY " + this.speedY)
+                        console.log("ballMultiplier " + this.ballMultiplier)
+                    }
+                    console.log("speedY" + this.speedY)
+
+                    // console.log("ballMultiplier" + ballMultiplier)
+                    // console.log("baseSpeed" + baseSpeed)
+
                 }
                 else if (this.y + this.radius >= 600) {
-                    this.speedY = -this.speedY;
+                    // this.speedY = -this.speedY;
                     isGameOver = true
                 }
                 if (this.y + this.radius >= myGamePiece.y && (this.x + this.radius >= myGamePiece.x && this.x - this.radius <= myGamePiece.x + myGamePiece.width)) {
-                    this.speedY = -this.speedY;
-                    this.speedX = (this.x - (myGamePiece.x + myGamePiece.width / 2)) / (myGamePiece.width / 3);
-                    console.log(this.speedX)
-                    this.speedY = Math.sqrt(Math.pow(this.baseSpeed, 2) - Math.pow(this.speedX, 2)) * (-1);//?
-                    console.log("kontakt")
+                    // console.log("speedY" + this.speedY)
+                    // this.speedY = -this.speedY//* baseSpeed;
+                    this.speedX = (this.x - (myGamePiece.x + myGamePiece.width / 2)) * 10/ (myGamePiece.width);
+                    // console.log(this.speedX)
+                    this.speedY = Math.sqrt(Math.pow(this.ballMultiplier * baseSpeed, 2) - Math.pow(this.speedX, 2)) * (-1);//?
+                    // this.speedX = -this.speedX //* baseSpeed
+                    // console.log("speedY" + this.speedY)
+
+                    if (this.x < (myGamePiece.x + myGamePiece.width / 10) || (this.x > (myGamePiece.x + (myGamePiece.width / 10) * 9))) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 3;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else if (this.x < (myGamePiece.x + (myGamePiece.width / 10) * 3) || (this.x > (myGamePiece.x + (myGamePiece.width / 10) * 7))) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 2;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    }
+                    else if (this.x < (myGamePiece.x + (myGamePiece.width / 10) * 4) || (this.x > (myGamePiece.x + (myGamePiece.width / 10) * 6))) {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 1.5;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    } else {
+                        this.speedX = (this.speedX / this.ballMultiplier)
+                        this.speedY = (this.speedY / this.ballMultiplier) 
+                        this.ballMultiplier = 1;
+                        this.speedX *= this.ballMultiplier
+                        this.speedY *= this.ballMultiplier
+                    }
+                    console.log("speedY" + this.speedY)
+                    // console.log("ballMultiplier" + ballMultiplier)
+                    // console.log("baseSpeed" + baseSpeed)
                 }
             }
         }
 
+        function getName() {
+            let text;
+            while (playerName == "") {
+                playerName = prompt("Please enter your name:", "name");
+
+            }
+        }
+        function getDate() {
+            gameDate = new Date().toLocaleDateString();
+        }
+
+
         function gameOver() {
+            gameStopTime = Date.now();
+
+            gameTime = (gameStopTime - gameStartTime) / 1000;
+            console.log(gameStopTime)
+
+            console.log(gameStartTime)
+
+            console.log(gameTime)
+            getName()
+            getDate();
+            writeToDb()
+            playerName = "";
             ctx.clearRect(0, 0, 800, 600);
             ctx.fillStyle = "red"
             ctx.font = "125px Arial";
@@ -166,7 +354,7 @@
                     if (myOpponentList[i][j].visible == true) {
                         var edge = collided(myOpponentList[i][j])
                         if (edge != "none") {
-                            myCounter.score +=5;
+                            myCounter.score += 5;
                             myOpponentList[i][j].visible = false;
                             if (edge == "right" || edge == "left") {
                                 myBall.speedX *= -1
@@ -211,11 +399,11 @@
             return ((corner2X - corner1X) * (myBall.y - corner1Y) - (corner2Y - corner1Y) * (myBall.x - corner1X)) > myBall.radius;
         }
         function moveLeft() {
-            myGamePiece.speedX = -3;
+            myGamePiece.speedX = -baseSpeed;
         }
 
         function moveRight() {
-            myGamePiece.speedX = 3;
+            myGamePiece.speedX = baseSpeed;
         }
 
         function movePlatform(e) {
