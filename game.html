@@ -1,5 +1,4 @@
 <!-- http://dynamic.secdev.pl/PAIGM_2022_LATO/ -->
-<!-- http://dynamic.secdev.pl/PAIGM_2022_LATO/ZAD28_05_2022_ARKANOID.pdf -->
 
 <!DOCTYPE html>
 <html>
@@ -24,31 +23,35 @@
 
 <body onload="startGame()">
     <script>
+        var blockColors = ["orange", "Aqua", "Black", "Chartreuse", "Coral", "DarkOliveGreen", "DeepPink",
+            "Tan", "Sienna", "SlateBlue", "SlateGray", "Teal"]
         var myGamePiece;
+        var myGamePieceWidthMultiplier = 1
+        var myGamePieceWidthMultiplierTime
         var myObstacle;
-        // var myBall;
         var myBalls = [];
-        // var visibleBalls = 0;
-
         var myCounter;
         var myOpponentList = [];
         let keyboardEventListenerDown;
         let keyboardEventListenerUp;
-        // var isGameOver;
+        var isGameOver = true;
         var baseSpeed = 5
-
         var playerName = "";
         var gameDate;
         var points;
+        var pointMultiplier = 1
+        var pointMultiplierTime
         var gameTime;
         var gameStartTime;
         var roundStartTime
         var gameStopTIme;
         var visibleBlocks = 0;
-        var gameMode = 2;
+        var gameMode = 0;
         var blockrows = 3;
         var blockBCounter = 0
         var powerups = [];
+        var reversedSteering = false
+        var reversedSteeringTime
 
         window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
         window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
@@ -68,6 +71,9 @@
             var objectStore = db.createObjectStore("scoreBoard", { keyPath: "id", autoIncrement: true });
             objectStore.createIndex("id", "id", { unique: true });
         }
+        function loadThings() {
+
+        }
         function writeToDb() {
             let record = {
                 name: playerName,
@@ -84,17 +90,16 @@
         }
 
         function startGame() {
-            // isGameOver = false;
+            isGameOver = false;
             myGamePiece = new component(100, 25, "purple", 350, 550);
             myBalls.push(new ballComponent(5, "red", 400, 545))
-            // myBall = new ballComponent(5, "red", 400, 545);
             myCounter = new counter("red");
-            keyboardEventListenerDown = window.addEventListener("keydown", movePlatform, true);
+            keyboardEventListenerDown = window.addEventListener("keydown", steerPlatform, true);
             keyboardEventListenerUp = window.addEventListener("keyup", clearMove, true);
             for (let i = 0; i < 3; i++) {
                 myOpponentList[i] = []
                 for (let j = 0; j < 10; j++) {
-                    myOpponentList[i].push(new blockComponent(50, 20, "green", 60 + j * (70), 60 + 90 - i * (30)));
+                    myOpponentList[i].push(new blockComponent(50, 20, 60 + j * (70), 60 + 90 - i * (30)));
                 }
             }
             myGameArea.start();
@@ -126,6 +131,7 @@
         }
 
         function component(width, height, color, x, y) {
+            this.baseWidth = width
             this.width = width;
             this.height = height;
             this.speedX = 0;
@@ -135,6 +141,7 @@
             this.visible = true;
             this.update = function () {
                 if (this.visible) {
+                    this.width = this.baseWidth * myGamePieceWidthMultiplier;
                     ctx = myGameArea.context;
                     ctx.fillStyle = color;
                     ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -148,7 +155,7 @@
             }
         }
 
-        function blockComponent(width, height, color, x, y) {
+        function blockComponent(width, height, x, y) {
             this.width = width;
             this.height = height;
             this.type = Math.floor(Math.random() * 2 + 1)
@@ -156,10 +163,11 @@
             this.y = y;
             this.visible = true;
             visibleBlocks++;
+            this.color = blockColors[Math.floor(Math.random() * blockColors.length)]
             this.update = function () {
                 if (this.visible) {
                     ctx = myGameArea.context;
-                    ctx.fillStyle = color;
+                    ctx.fillStyle = this.color;
                     ctx.fillRect(this.x, this.y, this.width, this.height);
                 }
             }
@@ -167,7 +175,7 @@
 
         function powerUpComponent(x, y, type) {
             this.width = 40;
-            this.height = 30;
+            this.height = 20;
             this.type = type
             this.x = x;
             this.y = y;
@@ -177,38 +185,87 @@
             switch (type) {
                 case 1:
                     this.text = "  X2  "
+                    break;
                 case 2:
                     this.text = "  X5  "
+                    break;
                 case 3:
                     this.text = "<---->"
+                    break;
                 case 4:
                     this.text = ">....<"
+                    break;
                 case 5:
                     this.text = " R<>L "
             }
 
             this.update = function () {
-                if (this.visible) { 
+                if (this.visible) {
                     this.y += 1
                     ctx = myGameArea.context;
                     ctx.fillStyle = "yellow";
                     ctx.fillRect(this.x, this.y, this.width, this.height);
-                    ctx.fillText(this.text, this.x, this.y)
-                    if (collidedWithPlatform(this)){
+                    ctx.fillStyle = "black";
+                    ctx.font = "15px Arial";
+                    ctx.fillText(this.text, this.x, this.y + 18)
+                    if (collidedWithPlatform(this.x, this.y)) {
                         this.visible = false
-                        //DO THE POWERUP THING
+                        switch (type) {
+                            case 1:
+                                this.text = "  X2  "
+                                pointMultiplier = 2
+                                pointMultiplierTime = Date.now();
+                                break;
+                            case 2:
+                                this.text = "  X5  "
+                                pointMultiplier = 5
+                                pointMultiplierTime = Date.now();
+                                break;
+                            case 3:
+                                this.text = "<---->"
+                                myGamePieceWidthMultiplier = 1.2
+                                myGamePieceWidthMultiplierTime = Date.now()
+                                break;
+                            case 4:
+                                this.text = ">....<"
+                                myGamePieceWidthMultiplier = 0.8
+                                myGamePieceWidthMultiplierTime = Date.now()
+                                break;
+                            case 5:
+                                this.text = " R<>L "
+                                reversedSteering = true
+                                reversedSteeringTime = Date.now()
+                        }
                     }
                 }
             }
         }
 
+        function powerUpTimers() {
+            var timeNow = Date.now();
+            if (pointMultiplier != 1) {
+                if (((timeNow - pointMultiplierTime) / 1000) > 5) {
+                    pointMultiplier = 1
+                }
+            }
+            if (reversedSteering == true) {
+                if (((timeNow - reversedSteeringTime) / 1000) > 5) {
+                    reversedSteering = false
+                }
+            }
+            if (myGamePieceWidthMultiplier != 1) {
+                if (((timeNow - myGamePieceWidthMultiplierTime) / 1000) > 5) {
+                    myGamePieceWidthMultiplier = 1
+                }
+            }
+        }
 
         function ballComponent(radius, color, x, y) {
             this.visible = true;
             this.color = color
             this.afterimagesColor = "lightpink";
             this.radius = radius;
-            this.ballMultiplier = 1//?
+            this.ballMultiplier = 1
             this.speedX = 0;
             this.speedY = (-1) * baseSpeed;
             this.x = x;
@@ -240,7 +297,6 @@
                     ctx.arc(this.afterimages[i].xCoord, this.afterimages[i].yCoord, this.radius, 0, 360);
                     ctx.stroke();
                     ctx.closePath();
-                    // ctx.fillStyle = "red";
                     ctx.fill();
                 }
             }
@@ -255,7 +311,6 @@
                     ctx.arc(this.x, this.y, this.radius, 0, 360);
                     ctx.stroke();
                     ctx.closePath();
-                    // ctx.fillStyle = "red";
                     ctx.fill();
                 }
 
@@ -276,7 +331,6 @@
                     } else {
                         this.speedX = Math.abs(this.speedX) * (-1)
                     }
-
                     if (this.y < myGameArea.canvas.height / 10 || (this.y > (myGameArea.canvas.height / 10) * 9)) {
                         this.changeSpeed(3)
                     } else if (this.y < (myGameArea.canvas.height / 10) * 3 || this.y > (myGameArea.canvas.height / 10) * 7) {
@@ -289,8 +343,6 @@
                 }
                 if (this.y - this.radius <= 0) {
                     this.speedY = Math.abs(this.speedY)
-
-                    // -this.speedY
                     if (this.x < myGameArea.canvas.width / 10 || (this.x > (myGameArea.canvas.width / 10) * 9)) {
                         this.changeSpeed(3)
                     } else if (this.x < (myGameArea.canvas.width / 10) * 3 || this.x > (myGameArea.canvas.width / 10) * 7) {
@@ -303,9 +355,6 @@
                 }
                 else if (this.y + this.radius >= 600) {
                     this.visible = false
-
-
-                    // isGameOver = true
                 }
                 if (this.y + this.radius >= myGamePiece.y && (this.x + this.radius >= myGamePiece.x && this.x - this.radius <= myGamePiece.x + myGamePiece.width)) {
                     this.speedX = (this.x - (myGamePiece.x + myGamePiece.width / 2)) * 10 / (myGamePiece.width);
@@ -322,14 +371,11 @@
                 }
                 for (var i = 0; i < myBalls.length; i++) {
 
-
                     if (myBalls[i].x != this.x || myBalls[i].y != this.y) {
                         if (Math.sqrt(Math.pow(this.x - myBalls[i].x, 2) - Math.pow(this.y - myBalls[i].y, 2)) <= radius * 2) {
                             this.speedX *= (-1)
                             this.speedY *= (-1)
                         }
-
-
                     }
                 }
             }
@@ -346,6 +392,7 @@
         }
 
         function gameOver() {
+            isGameOver = true;
             gameStopTime = Date.now();
             gameTime = (gameStopTime - gameStartTime) / 1000;
             getName()
@@ -360,119 +407,104 @@
             return;
         }
         function updateGameArea() {
-            myGameArea.clear();
-            myCounter.update();
-            myGamePiece.newPos();
-            myGamePiece.update();
+            if (gameMode == 1 || gameMode == 2) {
+                myGameArea.clear();
+                myCounter.update();
+                myGamePiece.newPos();
+                myGamePiece.update();
 
-            for (var p = 0; p < powerups.length; p++) {
-            powerups[p].update()
-            }
+                for (var p = 0; p < powerups.length; p++) {
+                    powerups[p].update()
+                }
 
-            for (var k = 0; k < myBalls.length; k++) {
-                myBalls[k].updateAfterimagesCoords()
-                myBalls[k].drawAfterimages();
-                myBalls[k].newPos();
-                myBalls[k].update();
+                for (var k = 0; k < myBalls.length; k++) {
+                    myBalls[k].updateAfterimagesCoords()
+                    myBalls[k].drawAfterimages();
+                    myBalls[k].newPos();
+                    myBalls[k].update();
 
-                // myBall.updateAfterimagesCoords()
-                // myBall.drawAfterimages();
-                // myBall.newPos();
-                // myBall.update();
+                    for (let i = 0; i < myOpponentList.length; i++) {
+                        for (let j = 0; j < myOpponentList[i].length; j++) {
+                            if (myOpponentList[i][j].visible == true) {
+                                var edge = collided(myBalls[k], myOpponentList[i][j])
+                                if (edge != "none") {
 
-                for (let i = 0; i < myOpponentList.length; i++) {
-                    for (let j = 0; j < myOpponentList[i].length; j++) {
-                        if (myOpponentList[i][j].visible == true) {
-
-
-                            var edge = collided(myBalls[k], myOpponentList[i][j])
-                            if (edge != "none") {
-
-                                myCounter.score += 5;
-                                if (myOpponentList[i][j].type == 2) {
-                                    blockBCounter++;
-                                    console.log("blockBCounter = " + blockBCounter)
-                                } else if (myOpponentList[i][j].type == 1) {
-                                    spawnRandomPowerUp(myOpponentList[i][j]);
-                                }
-
-                                myOpponentList[i][j].visible = false;
-                                visibleBlocks--;
-                                if (edge == "right" || edge == "left") {
-                                    myBalls[k].speedX *= -1
-                                    if (myBalls[k].y < (myOpponentList[i][j].y + myOpponentList[i][j].height / 10) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 9))) {
-                                        myBalls[k].changeSpeed(3)
-                                    } else if (myBalls[k].y < (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 3) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 7))) {
-                                        myBalls[k].changeSpeed(2)
-                                    } else if (myBalls[k].y < (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 4) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 6))) {
-                                        myBalls[k].changeSpeed(1.5)
-                                    } else {
-                                        myBalls[k].changeSpeed(1)
+                                    myCounter.score += 5 * pointMultiplier;
+                                    if (myOpponentList[i][j].type == 2) {
+                                        blockBCounter++;
+                                    } else if (myOpponentList[i][j].type == 1) {
+                                        spawnRandomPowerUp(myOpponentList[i][j]);
                                     }
-                                } else {
-                                    myBalls[k].speedY *= -1
-                                    if (myBalls[k].x < (myOpponentList[i][j].x + myOpponentList[i][j].width / 10) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 9))) {
-                                        myBalls[k].changeSpeed(3)
-                                    } else if (myBalls[k].x < (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 3) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 7))) {
-                                        myBalls[k].changeSpeed(2)
-                                    } else if (myBalls[k].x < (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 4) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 6))) {
-                                        myBalls[k].changeSpeed(1.5)
+                                    myOpponentList[i][j].visible = false;
+                                    visibleBlocks--;
+                                    if (edge == "right" || edge == "left") {
+                                        myBalls[k].speedX *= -1
+                                        if (myBalls[k].y < (myOpponentList[i][j].y + myOpponentList[i][j].height / 10) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 9))) {
+                                            myBalls[k].changeSpeed(3)
+                                        } else if (myBalls[k].y < (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 3) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 7))) {
+                                            myBalls[k].changeSpeed(2)
+                                        } else if (myBalls[k].y < (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 4) || (myBalls[k].y > (myOpponentList[i][j].y + (myOpponentList[i][j].height / 10) * 6))) {
+                                            myBalls[k].changeSpeed(1.5)
+                                        } else {
+                                            myBalls[k].changeSpeed(1)
+                                        }
                                     } else {
-                                        myBalls[k].changeSpeed(1)
+                                        myBalls[k].speedY *= -1
+                                        if (myBalls[k].x < (myOpponentList[i][j].x + myOpponentList[i][j].width / 10) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 9))) {
+                                            myBalls[k].changeSpeed(3)
+                                        } else if (myBalls[k].x < (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 3) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 7))) {
+                                            myBalls[k].changeSpeed(2)
+                                        } else if (myBalls[k].x < (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 4) || (myBalls[k].x > (myOpponentList[i][j].x + (myOpponentList[i][j].width / 10) * 6))) {
+                                            myBalls[k].changeSpeed(1.5)
+                                        } else {
+                                            myBalls[k].changeSpeed(1)
+                                        }
+                                    }
+                                    if (blockBCounter == 5) {
+                                        spawnNewBall()
+                                        blockBCounter = 0;
                                     }
                                 }
-                                if (blockBCounter == 5) {
-                                    spawnNewBall()
-                                    blockBCounter = 0;
-                                }
+                                myOpponentList[i][j].update()
                             }
-                            myOpponentList[i][j].update()
                         }
                     }
                 }
-            }
-            if (gameMode == 1) {
-                if (visibleBlocks < 25) {
-                    if (visibleBlocks < 5) {
-                        currentVisibleBlocks = visibleBlocks
-                        while (currentVisibleBlocks == visibleBlocks) {
-                            tryToGetBackRandomBlock()
-                        }
-                    } else {
-                        if (Math.random() * 100 < 1) {
-                            tryToGetBackRandomBlock()
+                if (gameMode == 1) {
+                    if (visibleBlocks < 25) {
+                        if (visibleBlocks < 5) {
+                            currentVisibleBlocks = visibleBlocks
+                            while (currentVisibleBlocks == visibleBlocks) {
+                                tryToGetBackRandomBlock()
+                            }
+                        } else {
+                            if (Math.random() * 100 < 1) {
+                                tryToGetBackRandomBlock()
+                            }
                         }
                     }
+                } else if (gameMode == 2) {
+                    if ((Date.now() - roundStartTime) / 1000 > 20) {//20
+                        addBlocksLayer()
+                        roundStartTime = Date.now();
+                    }
                 }
-            } else if (gameMode == 2) {
-                if ((Date.now() - roundStartTime) / 1000 > 20) {//20
-                    addBlocksLayer()
-                    roundStartTime = Date.now();
+                for (var b = myBalls.length - 1; b >= 0; b--) {
+                    if (myBalls[b].visible == false) {
+                        myBalls.splice(b, 1)
+                    }
                 }
-            }
+                if (myBalls.length == 0) {
+                    gameOver();
 
-            for (var b = myBalls.length - 1; b >= 0; b--) {
-                if (myBalls[b].visible == false) {
-                    console.log("POP")
-                    myBalls.pop(b)
                 }
+                powerUpTimers()
             }
-            console.log(myBalls.length)
-
-            if (myBalls.length == 0) {
-                gameOver();
-
-            }
-
-            // if (isGameOver) {
-            // }
-
         }
         function spawnRandomPowerUp(block) {
-            var powerUpType = Math.floor(Math.random() * 5)
+            var powerUpType = Math.floor(Math.random() * 5 + 1)
             powerups.push(new powerUpComponent(block.x + 10, block.y, powerUpType))
         }
-
 
         function addBlocksLayer() {
             for (let i = 0; i < blockrows; i++) {
@@ -483,7 +515,7 @@
 
             myOpponentList[blockrows] = []
             for (var i = 0; i < 10; i++) {
-                myOpponentList[blockrows].push(new blockComponent(50, 20, "green", 60 + i * (70), 90));
+                myOpponentList[blockrows].push(new blockComponent(50, 20, 60 + i * (70), 90));
             }
             blockrows++
         }
@@ -499,17 +531,15 @@
         function spawnNewBall() {
             myBalls.push(new ballComponent(5, "red", myBalls[0].x, myBalls[0].y))
         }
-        function collidedWithPlatform(powerup) {
-            if (powerup.x > myGamePiece.x + myGamePiece.width || myGamePiece.x > powerup.x + powerup.width) {
+        function collidedWithPlatform(x, y) {
+            if (x > myGamePiece.x + myGamePiece.width || myGamePiece.x > x + 40) {
                 return false;
             }
-            if (powerup.y + powerup.height > myGamePiece.y || myGamePiece.y + myGamePiece.height > powerup.y) {
+            if (y + 20 < myGamePiece.y || myGamePiece.y + myGamePiece.height < y) {
                 return false;
             }
             return true;
         }
-
-
 
         function collided(ball, element) {
             var distX = Math.abs(ball.x - element.x - element.width / 2);
@@ -543,6 +573,14 @@
             myGamePiece.speedX = baseSpeed;
         }
 
+        function steerPlatform(e) {
+            if (reversedSteering == false) {
+                movePlatform(e)
+            } else {
+                movePlatformReverse(e)
+            }
+        }
+
         function movePlatform(e) {
             switch (e.keyCode) {
                 case 37:
@@ -553,33 +591,76 @@
                     break;
             }
         }
+        function movePlatformReverse(e) {
+            switch (e.keyCode) {
+                case 37:
+                    moveRight()
+                    break;
+                case 39:
+                    moveLeft();
+                    break;
+            }
+        }
 
         function clearMove() {
             myGamePiece.speedX = 0;
         }
         function stopGame() {
-            gameOver()
+            if (!isGameOver) {
+                gameOver()
+            }
         } function startNewGame() {
             ctx.clearRect(0, 0, 800, 600);
             clearInterval(myGameArea.interval)
+            resertVariables()
             startGame()
+        }
+        function resertVariables() {
+            myGamePiece;
+            myGamePieceWidthMultiplier = 1
+            myGamePieceWidthMultiplierTime = ""
+            myObstacle;
+            myBalls = [];
+            myCounter = 0;
+            myOpponentList = [];
+            baseSpeed = 5
+            playerName = "";
+            gameDate;
+            points;
+            pointMultiplier = 1
+            pointMultiplierTime = ""
+            gameTime;
+            gameStartTime;
+            roundStartTime = ""
+            gameStopTIme;
+            visibleBlocks = 0;
+            blockrows = 3;
+            blockBCounter = 0
+            powerups = [];
+            reversedSteering = false
+            reversedSteeringTime = ""
+        }
+        function startA() {
+            gameMode = 1
+            startNewGame()
+        }
+        function startB() {
+            gameMode = 2
+            startNewGame()
         }
         function adjust(color, amount) {
             return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
         }
-
-
     </script>
-    <div style="text-align:center;width:480px;">
-
-        <button onmousedown="moveLeft()" onmouseup="clearMove()" ontouchstart="moveLeft()">LEFT</button>
-        <button onmousedown="moveRight()" onmouseup="clearMove()" ontouchstart="moveRight()">RIGHT</button>
-        <button onmousedown="startNewGame()">START</button>
+    <div style="text-align:center;width:480px;margin: auto;margin-top: 810px;">
+        <div>
+            <button onmousedown="moveLeft()" onmouseup="clearMove()" ontouchstart="moveLeft()">LEFT</button>
+            <button onmousedown="moveRight()" onmouseup="clearMove()" ontouchstart="moveRight()">RIGHT</button>
+        </div>
+        <br>
         <button onmousedown="stopGame()">STOP</button>
-        <br><br>
-
+        <button onmousedown="startA()">MODE A</button>
+        <button onmousedown="startB()">MODE B</button>
     </div>
-    <p>Now there is an obstacle in our gaming area, but still nothing happens when the red square hits it.</p>
 </body>
-
 </html>
