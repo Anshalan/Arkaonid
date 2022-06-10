@@ -48,6 +48,7 @@
         var gameMode = 2;
         var blockrows = 3;
         var blockBCounter = 0
+        var powerups = [];
 
         window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
         window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
@@ -162,14 +163,45 @@
                     ctx.fillRect(this.x, this.y, this.width, this.height);
                 }
             }
-
-            // this.newPos = function () {
-            //     if (this.x >= 0 && this.speedX < 0 || this.x <= 800 - this.width && this.speedX > 0) {
-            //         this.x += this.speedX;
-            //     }
-            //     this.y += this.speedY;
-            // }
         }
+
+        function powerUpComponent(x, y, type) {
+            this.width = 40;
+            this.height = 30;
+            this.type = type
+            this.x = x;
+            this.y = y;
+            this.visible = true;
+            visibleBlocks++;
+            this.text
+            switch (type) {
+                case 1:
+                    this.text = "  X2  "
+                case 2:
+                    this.text = "  X5  "
+                case 3:
+                    this.text = "<---->"
+                case 4:
+                    this.text = ">....<"
+                case 5:
+                    this.text = " R<>L "
+            }
+
+            this.update = function () {
+                if (this.visible) { 
+                    this.y += 1
+                    ctx = myGameArea.context;
+                    ctx.fillStyle = "yellow";
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.fillText(this.text, this.x, this.y)
+                    if (collidedWithPlatform(this)){
+                        this.visible = false
+                        //DO THE POWERUP THING
+                    }
+                }
+            }
+        }
+
 
         function ballComponent(radius, color, x, y) {
             this.visible = true;
@@ -271,7 +303,7 @@
                 }
                 else if (this.y + this.radius >= 600) {
                     this.visible = false
-                    
+
 
                     // isGameOver = true
                 }
@@ -332,6 +364,11 @@
             myCounter.update();
             myGamePiece.newPos();
             myGamePiece.update();
+
+            for (var p = 0; p < powerups.length; p++) {
+            powerups[p].update()
+            }
+
             for (var k = 0; k < myBalls.length; k++) {
                 myBalls[k].updateAfterimagesCoords()
                 myBalls[k].drawAfterimages();
@@ -355,7 +392,10 @@
                                 if (myOpponentList[i][j].type == 2) {
                                     blockBCounter++;
                                     console.log("blockBCounter = " + blockBCounter)
+                                } else if (myOpponentList[i][j].type == 1) {
+                                    spawnRandomPowerUp(myOpponentList[i][j]);
                                 }
+
                                 myOpponentList[i][j].visible = false;
                                 visibleBlocks--;
                                 if (edge == "right" || edge == "left") {
@@ -426,7 +466,14 @@
 
             // if (isGameOver) {
             // }
+
         }
+        function spawnRandomPowerUp(block) {
+            var powerUpType = Math.floor(Math.random() * 5)
+            powerups.push(new powerUpComponent(block.x + 10, block.y, powerUpType))
+        }
+
+
         function addBlocksLayer() {
             for (let i = 0; i < blockrows; i++) {
                 for (let j = 0; j < 10; j++) {
@@ -451,6 +498,15 @@
         }
         function spawnNewBall() {
             myBalls.push(new ballComponent(5, "red", myBalls[0].x, myBalls[0].y))
+        }
+        function collidedWithPlatform(powerup) {
+            if (powerup.x > myGamePiece.x + myGamePiece.width || myGamePiece.x > powerup.x + powerup.width) {
+                return false;
+            }
+            if (powerup.y + powerup.height > myGamePiece.y || myGamePiece.y + myGamePiece.height > powerup.y) {
+                return false;
+            }
+            return true;
         }
 
 
